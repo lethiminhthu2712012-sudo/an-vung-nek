@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ăn Vụng Trong Lớp Học - 2D Low Poly</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Arial', sans-serif; }
+        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+
+        /* Khung game chuẩn 16:9 */
+        #game-container {
+            width: 1000px;
+            height: 562px;
+            position: relative;
+            background: #e0d0b0;
+            border: 4px solid #333;
+            box-shadow: 0 0 25px rgba(0,0,0,0.9);
+            overflow: hidden;
+        }
+
+        .screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        .active { display: block; }
+
+        /* 1. Màn hình Intro (Video hiển thị rõ nguyên bản 100%, không phủ tối) */
+        #intro-screen { background: #000; text-align: center; position: relative; }
+        #intro-video {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
+        }
+        .intro-overlay {
+            position: relative; z-index: 2; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: flex-end; align-items: center; 
+            padding-bottom: 50px; color: white; pointer-events: none;
+        }
+        .intro-overlay button { pointer-events: auto; }
+
+        .btn-main { 
+            padding: 16px 40px; font-size: 22px; font-weight: bold; background: #4caf50; 
+            color: white; border: none; border-radius: 10px; cursor: pointer; 
+            box-shadow: 0 6px 12px rgba(0,0,0,0.6); transition: 0.2s ease;
+        }
+        .btn-main:hover { background: #45a049; transform: scale(1.08); }
+
+        /* 2. Màn hình Nhập tên & Chọn món */
+        #name-screen, #menu-screen { background: #f4ecd8; padding: 20px; text-align: center; }
+        .food-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 20px; max-height: 380px; overflow-y: auto; padding: 10px; }
+        .food-card { background: white; border: 2px solid #ccc; border-radius: 8px; padding: 10px; cursor: pointer; text-align: center; transition: 0.2s; }
+        .food-card:hover { border-color: #ff9800; transform: scale(1.03); background: #fffdf9; }
+        .food-card img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; }
+
+        /* 3. Màn hình Gameplay (Lớp học 2D low-poly) */
+        #gameplay-screen {
+            background: linear-gradient(to bottom, #dbe9f4 0%, #dbe9f4 55%, #c2b280 55%, #c2b280 100%);
+            position: relative;
+        }
+        /* Thầy Vĩnh áo trắng (Cầm roi giám sát) */
+        #teacher-box {
+            position: absolute; top: 15px; right: 25px; width: 110px; height: 140px;
+            text-align: center;
+        }
+        #teacher-box img { width: 100%; height: 100%; object-fit: contain; }
+        #warning-sign { display: none; color: red; font-size: 40px; font-weight: bold; position: absolute; top: -30px; left: 40px; text-shadow: 0 0 5px #fff; }
+
+        /* Bàn học sinh & Món ăn vơi dần (Nằm ở dưới cùng) */
+        #student-desk {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            width: 420px; height: 110px; background: #8b5a2b; border-radius: 8px; border: 3px solid #5c3a1e;
+            display: flex; align-items: center; justify-content: space-around; padding: 0 15px;
+        }
+        #food-container {
+            width: 80px; height: 80px; position: relative; overflow: hidden;
+            background: #fff; border-radius: 50%; border: 3px solid #ddd;
+        }
+        #food-image {
+            width: 100%; height: 100%; object-fit: cover;
+            transition: clip-path 0.3s ease;
+        }
+
+        /* BẢNG CÂU HỎI CHÍNH GIỮA MÀN HÌNH - CHỮ TO RÕ */
+        #question-box {
+            position: absolute; top: 85px; left: 50%; transform: translateX(-50%);
+            width: 660px; background: rgba(255, 255, 255, 0.98);
+            padding: 22px; border-radius: 12px; border: 3px solid #333; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3); text-align: center;
+        }
+        #question-text {
+            font-size: 21px; font-weight: bold; color: #111; margin-bottom: 18px; line-height: 1.4;
+        }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .option-btn {
+            padding: 12px 15px; text-align: center; background: #e3f2fd; border: 2px solid #90caf9; 
+            border-radius: 8px; cursor: pointer; font-size: 17px; font-weight: bold; color: #0d47a1;
+            transition: 0.2s;
+        }
+        .option-btn:hover { background: #bbdefb; border-color: #42a5f5; transform: scale(1.02); }
+
+        /* HUD - Thời gian & Trạng thái */
+        #hud-top { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); color: white; padding: 10px 18px; border-radius: 8px; font-size: 18px; }
+        #read-book-btn { position: absolute; bottom: 20px; right: 20px; padding: 12px 20px; background: #2196F3; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px; }
+        #read-book-btn:hover { background: #0b7dda; }
+
+        /* Màn hình kết thúc */
+        .overlay-screen { background: rgba(0,0,0,0.92); color: white; text-align: center; padding-top: 130px; }
+        #bien-ik-text { font-size: 90px; color: red; font-weight: bold; margin-top: 30px; text-shadow: 0 0 20px red; }
+    </style>
+</head>
+<body>
+
+<!-- Các kho âm thanh trong thư mục assets/audios/ -->
+<audio id="sound-menu" loop><source src="assets/audios/sound_1_menu.wav" type="audio/wav"></audio>
+<audio id="sound-click"><source src="assets/audios/sound_2_click.wav" type="audio/wav"></audio>
+<audio id="sound-interfere"><source src="assets/audios/sound_3_interfere.wav" type="audio/wav"></audio>
+<audio id="sound-cry"><source src="assets/audios/sound_4_cry.wav" type="audio/wav"></audio>
+<audio id="sound-bienik"><source src="assets/audios/sound_5_bienik.wav" type="audio/wav"></audio>
+<audio id="sound-correct"><source src="assets/audios/sound_correct.wav" type="audio/wav"></audio>
+<audio id="sound-win"><source src="assets/audios/sound_win.wav" type="audio/wav"></audio>
+<audio id="sound-wrong"><source src="assets/audios/sound_wrong.wav" type="audio/wav"></audio>
+
+<div id="game-container">
+    <!-- 1. Trang Intro -->
+    <div id="intro-screen" class="screen active">
+        <video id="intro-video" autoplay muted loop playsinline>
+            <source src="assets/videos/intro_video.mp4" type="video/mp4">
+        </video>
+        <div class="intro-overlay">
+            <button class="btn-main" onclick="goToNameInput()">▶ BẮT ĐẦU</button>
+        </div>
+    </div>
+
+    <!-- 2. Trang nhập tên -->
+    <div id="name-screen" class="screen">
+        <div style="padding-top: 170px;">
+            <h2>Nhập tên học sinh ăn vụng:</h2>
+            <input type="text" id="username" style="padding: 12px; font-size: 18px; margin: 15px; width: 280px; text-align: center;" placeholder="Ví dụ: An Nhi...">
+            <br>
+            <button class="btn-main" onclick="goToMenu()">TIẾP TỤC</button>
+        </div>
+    </div>
+
+    <!-- 3. Màn hình chọn món ăn -->
+    <div id="menu-screen" class="screen">
+        <h2>LỰA CHỌN MÓN ĂN VỤNG TRÊN BÀN</h2>
+        <p style="color: #666; font-size: 14px; margin-top: 5px;">Chọn món để bắt đầu thử thách (Dễ: 20 câu | Trung bình: 25 câu | Khó: 35 câu)</p>
+        <div class="food-grid" id="food-list"></div>
+    </div>
+
+    <!-- 4. Màn hình Gameplay -->
+    <div id="gameplay-screen" class="screen">
+        <div id="hud-top">
+            <div>⏰ Thời gian: <span id="timer" style="color: #ffeb3b; font-weight: bold;">120</span>s</div>
+            <div>🍗 Tiến độ: <span id="progress">0</span>/<span id="total-q">20</span> câu</div>
+        </div>
+
+        <!-- Thầy Vĩnh áo trắng (Cầm roi giám sát) -->
+        <div id="teacher-box">
+            <div id="warning-sign">!</div>
+            <img src="assets/images/teacher_white.png" alt="Thầy Vĩnh" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <p style="display:none; font-size: 12px; font-weight: bold; color: #333; margin-top: 40px;">Thầy Vĩnh<br>(Cầm roi)</p>
+        </div>
+
+        <!-- BẢNG CÂU HỎI -->
+        <div id="question-box">
+            <p id="question-text"></p>
+            <div class="options-grid" id="options-container"></div>
+        </div>
+
+        <!-- Bàn học & Món ăn vơi dần -->
+        <div id="student-desk">
+            <p style="color: #fff; font-size: 14px; font-weight: bold;">Món đang ăn:</p>
+            <div id="food-container">
+                <img id="food-image" src="" alt="Món ăn">
+            </div>
+        </div>
+
+        <button id="read-book-btn" onclick="pretendReadBook()">📖 Giả vờ đọc sách</button>
+    </div>
+
+    <!-- 5. Màn hình Kết thúc -->
+    <div id="endgame-choice-screen" class="screen overlay-screen">
+        <h2 id="end-title" style="font-size: 32px; margin-bottom: 15px;">KẾT THÚC TRÒ CHƠI</h2>
+        <p id="end-message" style="font-size: 20px; color: #ddd;"></p>
+        <p style="margin: 25px 0; font-size: 24px; font-weight: bold;">Bạn có muốn chơi tiếp không?</p>
+        <button class="btn-main" onclick="restartGame()">Có</button>
+        <button class="btn-main" style="background: #f44336; margin-left: 15px;" onclick="chooseHok()">Hok</button>
+    </div>
+
+    <!-- 6. Màn hình BIẾN IK -->
+    <div id="bien-ik-screen" class="screen overlay-screen">
+        <div id="bien-ik-text">BIẾN IK</div>
+        <p style="margin-top: 15px; font-size: 18px; color: #aaa;">(Ông áo đen ra tay can thiệp - Đang phát nhạc Biến Ik...)</p>
+    </div>
+</div>
+
+<script>
+    const foods = [
+        { name: "Bánh mì", level: "Dễ", questions: 20, img: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=150" },
+        { name: "Sandwich", level: "Dễ", questions: 20, img: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=150" },
+        { name: "Kẹo mút", level: "Dễ", questions: 20, img: "https://images.unsplash.com/photo-1582058091505-f87a2e55a40f?w=150" },
+        { name: "Xôi gấc", level: "Dễ", questions: 20, img: "https://images.unsplash.com/photo-1541529086526-db283c563270?w=150" },
+        { name: "Bánh tráng trộn", level: "TB", questions: 25, img: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=150" },
+        { name: "Mì tương đen", level: "TB", questions: 25, img: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=150" },
+        { name: "Gà rán", level: "Khó", questions: 35, img: "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=150" },
+        { name: "Mì cay", level: "Khó", questions: 35, img: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=150" }
+    ];
+
+    const questionsBank = [
+        { q: "Toán 6: Kết quả của phép tính 2^3 . 2^2 bằng bao nhiêu?", options: ["32", "16", "64", "8"], a: 0 },
+        { q: "Toán 6: Số nguyên tố nhỏ nhất là số nào?", options: ["0", "1", "2", "3"], a: 2 },
+        { q: "Toán 7: Kết quả của phép tính (-2)^3 bằng bao nhiêu?", options: ["-8", "8", "-6", "6"], a: 0 },
+        { q: "Toán 7: Tổng số đo ba góc trong một tam giác bằng bao nhiêu độ?", options: ["90°", "180°", "270°", "360°"], a: 1 },
+        { q: "Toán 8: Hằng đẳng thức (a + b)^2 bằng biểu thức nào?", options: ["a^2 - b^2", "a^2 + 2ab + b^2", "a^2 - 2ab + b^2", "a^2 + b^2"], a: 1 },
+        { q: "Ngữ văn 6: Tác giả của tác phẩm 'Dế Mèn phiêu lưu ký' là ai?", options: ["Xuân Diệu", "Tô Hoài", "Nam Cao", "Thạch Lam"], a: 1 },
+        { q: "Ngữ văn 7: Bài thơ 'Sông núi nước Nam' được coi là gì của nước ta?", options: ["Bản tuyên ngôn độc lập đầu tiên", "Án thiên cổ hùng văn", "Bình ngô đại cáo", "Hịch tướng sĩ"], a: 0 },
+        { q: "Ngữ văn 8: Nhân vật lão Hạc trong truyện cùng tên làm nghề gì để sống?", options: ["Đánh cá", "Làm thuê và làm vườn", "Làm mộc", "Buôn bán nhỏ"], a: 1 },
+        { q: "KHTN 6: Đơn vị đo độ dài hợp pháp trong hệ thống SI là gì?", options: ["Kilogram", "Mét", "Giây", "Lít"], a: 1 },
+        { q: "KHTN 7: Tốc độ của vật được tính bằng công thức nào?", options: ["v = s / t", "v = s . t", "v = t / s", "v = s + t"], a: 0 },
+        { q: "KHTN 8: Công thức hóa học của nước là gì?", options: ["CO2", "NaCl", "H2O", "O2"], a: 2 },
+        { q: "Tiếng Anh 6: What is the capital of Viet Nam?", options: ["Ho Chi Minh City", "Da Nang", "Hanoi", "Hue"], a: 2 },
+        { q: "Tiếng Anh 7: Choose the correct tense: 'She usually _____ to school by bike.'", options: ["go", "goes", "went", "going"], a: 1 },
+        { q: "Tiếng Anh 8: If I _____ you, I would study harder.", options: ["am", "was", "were", "be"], a: 2 },
+        { q: "Lịch sử 6: Ai lãnh đạo nghĩa quân đánh đuổi quân Nam Hán trên sông Bạch Đằng năm 938?", options: ["Ngô Quyền", "Đinh Bộ Lĩnh", "Lê Hoàn", "Trần Hưng Đạo"], a: 0 },
+        { q: "Lịch sử 9: Chủ tịch Hồ Chí Minh đọc Tuyên ngôn Độc lập vào ngày tháng năm nào?", options: ["02/09/1945", "19/08/1945", "30/04/1975", "07/05/1954"], a: 0 }
+    ];
+
+    let selectedFood = null;
+    let timer = 120;
+    let timerInterval = null;
+    let correctAnswersCount = 0;
+
+    function playSound(id) {
+        const audio = document.getElementById(id);
+        if (audio) {
+            audio.currentTime = 0;
+            audio.play().catch(e => console.log("Lỗi phát âm thanh:", e));
+        }
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    function goToNameInput() {
+        playSound('sound-click');
+        playSound('sound-menu'); // Phát nhạc nền menu
+        showScreen('name-screen'); 
+    }
+
+    function goToMenu() {
+        playSound('sound-click');
+        const name = document.getElementById('username').value.trim();
+        if (!name) { alert("Vui lòng nhập tên của bạn trước khi chơi!"); return; }
+        
+        showScreen('menu-screen');
+        const list = document.getElementById('food-list');
+        list.innerHTML = '';
+        
+        foods.forEach(food => {
+            const card = document.createElement('div');
+            card.className = 'food-card';
+            card.innerHTML = `<img src="${food.img}"><h4>${food.name}</h4><p style="font-size:12px; color:#555;">Độ khó: ${food.level} (${food.questions} câu)</p>`;
+            card.onclick = () => {
+                playSound('sound-click');
+                startGame(food);
+            };
+            list.appendChild(card);
+        });
+    }
+
+    function startGame(food) {
+        selectedFood = food;
+        timer = 120;
+        correctAnswersCount = 0;
+        document.getElementById('total-q').innerText = food.questions;
+        document.getElementById('progress').innerText = 0;
+        document.getElementById('food-image').src = food.img;
+        document.getElementById('food-image').style.clipPath = 'circle(100% at 50% 50%)';
+        
+        showScreen('gameplay-screen');
+        loadQuestion();
+
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            timer--;
+            document.getElementById('timer').innerText = timer;
+            if (timer <= 0) triggerLose();
+        }, 1000);
+    }
+
+    function loadQuestion() {
+        const q = questionsBank[Math.floor(Math.random() * questionsBank.length)];
+        document.getElementById('question-text').innerText = q.q;
+        const optsContainer = document.getElementById('options-container');
+        optsContainer.innerHTML = '';
+
+        q.options.forEach((opt, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.innerText = opt;
+            btn.onclick = () => {
+                playSound('sound-click');
+                checkAnswer(idx === q.a);
+            };
+            optsContainer.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(isCorrect) {
+        if (isCorrect) {
+            playSound('sound-correct');
+            correctAnswersCount++;
+            document.getElementById('progress').innerText = correctAnswersCount;
+
+            let remainingPercent = 100 - (correctAnswersCount / selectedFood.questions * 100);
+            document.getElementById('food-image').style.clipPath = `circle(${remainingPercent}% at 50% 50%)`;
+
+            if (correctAnswersCount >= selectedFood.questions) {
+                triggerWin();
+                return;
+            }
+        } else {
+            playSound('sound-wrong');
+            playSound('sound-interfere'); // Phát âm thanh can thiệp/cảnh cáo
+            timer -= 5;
+            if (timer < 0) timer = 0;
+            document.getElementById('timer').innerText = timer;
+
+            document.getElementById('warning-sign').style.display = 'block';
+            setTimeout(() => { document.getElementById('warning-sign').style.display = 'none'; }, 1000);
+            
+            alert("❌ Trả lời sai! Thầy Vĩnh giơ roi cảnh cáo và TRỪ 5 GIÂY thời gian!");
+        }
+        loadQuestion();
+    }
+
+    function pretendReadBook() {
+        playSound('sound-click');
+        alert("📖 Bạn đã bấm giả vờ đọc sách! Thầy Vĩnh tưởng bạn đang chăm chú học bài và qua mặt thành công.");
+    }
+
+    function triggerWin() {
+        clearInterval(timerInterval);
+        playSound('sound-win');
+        document.getElementById('end-title').innerText = "🏆 CHIẾN THẮNG!";
+        document.getElementById('end-message').innerText = "Bạn đã ăn sạch món ăn vụng và hoàn thành xuất sắc các câu hỏi! Nhận ngay phần thưởng 10.000 VNĐ[cite: 3].";
+        showScreen('endgame-choice-screen');
+    }
+
+    function triggerLose() {
+        clearInterval(timerInterval);
+        playSound('sound-cry'); // Phát tiếng học sinh khóc / thua
+        document.getElementById('end-title').innerText = "💥 BẠN ĐÃ BỊ THẦY VĨNH PHÁT HIỆN!";
+        document.getElementById('end-message').innerText = "Hết giờ! Thầy Vĩnh cầm roi phạt, học sinh khóc và ông áo đen bước vào can thiệp[cite: 4, 5]!";
+        showScreen('endgame-choice-screen');
+    }
+
+    function restartGame() {
+        playSound('sound-click');
+        goToMenu();
+    }
+
+    function chooseHok() {
+        playSound('sound-bienik'); // Phát âm thanh Biến Ik
+        showScreen('bien-ik-screen');
+    }
+</script>
+</body>
+</html>
